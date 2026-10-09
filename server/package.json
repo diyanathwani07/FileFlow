@@ -17,7 +17,7 @@
     "docx": "^9.9.0",
     "express": "^5.2.1",
     "multer": "^2.4.0",
-    "pdf-parse": "^2.4.5",
+    "pdf-parse": "^1.1.1",
     "pdf2pic": "^3.2.0",
     "tesseract.js": "^7.0.0"
   },

@@ -3,6 +3,7 @@ const fs = require('fs');
 const pdfParse = require('pdf-parse');
 const { generateWordDocument } = require('../services/wordService');
 const { processScannedPdf } = require('../services/ocrService');
+// Trigger nodemon restart
 
 exports.convertPdf = async (req, res, next) => {
   try {
@@ -15,7 +16,8 @@ exports.convertPdf = async (req, res, next) => {
 
     // 1. Analyze PDF using pdf-parse to check for selectable text
     const dataBuffer = fs.readFileSync(pdfPath);
-    const pdfData = await pdfParse(dataBuffer);
+    const parseFunc = typeof pdfParse === 'function' ? pdfParse : (pdfParse.PDFParse || pdfParse.default);
+    const pdfData = await parseFunc(dataBuffer);
 
     let extractedText = '';
     const textLength = pdfData.text ? pdfData.text.trim().length : 0;
