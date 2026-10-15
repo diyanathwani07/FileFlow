@@ -3,6 +3,8 @@ import { useDropzone } from 'react-dropzone';
 import { UploadCloud, File, Trash2, FileText, RefreshCw, AlertCircle } from 'lucide-react';
 import axios from 'axios';
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
 function App() {
   const [file, setFile] = useState(null);
   const [status, setStatus] = useState('idle'); // idle, converting, success, error
@@ -51,7 +53,7 @@ function App() {
       // Step 1: Upload and wait for conversion
       setProgressText('Analyzing PDF & Extracting Text...');
       
-      const response = await axios.post('http://localhost:5000/api/convert', formData, {
+      const response = await axios.post(`${API_BASE_URL}/api/convert`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
@@ -203,7 +205,7 @@ function App() {
 
                 <div className="flex flex-col sm:flex-row gap-4 justify-center">
                   <a
-                    href={`http://localhost:5000${resultData.downloadUrl}`}
+                    href={`${API_BASE_URL}${resultData.downloadUrl}`}
                     className="inline-flex justify-center items-center px-6 py-3 border border-transparent text-base font-medium rounded-lg text-white bg-green-600 hover:bg-green-700 shadow-sm"
                   >
                     Download DOCX
