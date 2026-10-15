@@ -3,7 +3,7 @@ import { useDropzone } from 'react-dropzone';
 import { UploadCloud, File, Trash2, FileText, RefreshCw, AlertCircle } from 'lucide-react';
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://fileflow-bp10.onrender.com';
 
 function App() {
   const [file, setFile] = useState(null);
