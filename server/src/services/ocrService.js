@@ -4,46 +4,69 @@ const Tesseract = require('tesseract.js');
 const { fromPath } = require('pdf2pic');
 
 // Helper to determine if Ghostscript is available is tricky, but pdf2pic will throw an error if it fails
+const { exec } = require('child_process');
+const util = require('util');
+const execPromise = util.promisify(exec);
+
+let hasNativeTesseract = null;
+async function isNativeTesseractAvailable() {
+  if (hasNativeTesseract !== null) return hasNativeTesseract;
+  try {
+    await execPromise('tesseract --version');
+    hasNativeTesseract = true;
+    console.log('Native system Tesseract detected. Using high-speed low-memory native OCR.');
+  } catch {
+    hasNativeTesseract = false;
+    console.log('Native Tesseract not found. Falling back to tesseract.js.');
+  }
+  return hasNativeTesseract;
+}
+
 exports.processScannedPdf = async (pdfPath) => {
-  // Set up pdf2pic options
+  // Use 150 DPI for optimal OCR accuracy while staying well within Render's 512MB RAM limit
   const options = {
-    density: 300,           // High density for better OCR
+    density: 150,
     saveFilename: "page",
     savePath: path.join(__dirname, '../../uploads/'),
-    format: "png",
-    width: 2480,
-    height: 3508
+    format: "png"
   };
   
   const convert = fromPath(pdfPath, options);
-  
   let extractedText = '';
 
   try {
-    // Bulk convert all pages
     const results = await convert.bulk(-1, { responseType: "image" });
     console.log(`Successfully converted ${results.length} pages to images.`);
 
+    const nativeOcr = await isNativeTesseractAvailable();
+
     for (let i = 0; i < results.length; i++) {
       const result = results[i];
-      // image info is in result.path or result.buffer if we used stream
       const imagePath = result.path;
+      console.log(`Running OCR on page ${i + 1}/${results.length}...`);
       
-      console.log(`Running OCR on page ${i + 1}...`);
-      
-      // Run Tesseract on the image
-      const { data: { text } } = await Tesseract.recognize(
-        imagePath,
-        'hin', // Hindi language model
-        { logger: m => console.log(m.status, Math.round(m.progress * 100) + '%') }
-      );
-      
-      extractedText += text + '\n\n';
-      
-      // Cleanup image
-      if (fs.existsSync(imagePath)) {
-        fs.unlinkSync(imagePath);
+      let pageText = '';
+      try {
+        if (nativeOcr) {
+          // Native Linux Tesseract (installed in Docker container): uses < 50MB RAM and runs 5x faster
+          const { stdout } = await execPromise(`tesseract "${imagePath}" stdout -l hin+eng --psm 3`);
+          pageText = stdout;
+        } else {
+          // Fallback to tesseract.js WebAssembly
+          const { data: { text } } = await Tesseract.recognize(
+            imagePath,
+            'hin',
+            { logger: m => console.log(m.status, Math.round(m.progress * 100) + '%') }
+          );
+          pageText = text;
+        }
+      } finally {
+        if (fs.existsSync(imagePath)) {
+          fs.unlinkSync(imagePath);
+        }
       }
+
+      extractedText += pageText.trim() + '\n\n';
     }
 
     return extractedText;
