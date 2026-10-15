@@ -4,20 +4,20 @@ const docx = require('docx');
 const { Document, Packer, Paragraph, TextRun } = docx;
 
 exports.generateWordDocument = async (text, originalName) => {
-  // Simple structure generation: split by double newlines for paragraphs
-  const paragraphs = text.split(/\n\n+/);
+  // Split by single newlines to preserve exact line formatting
+  const lines = text.split('\n');
   
-  const docChildren = paragraphs.map(p => {
+  const docChildren = lines.map(line => {
     return new Paragraph({
       children: [
         new TextRun({
-          text: p.trim(),
+          text: line,
           font: 'Mangal', // Use a standard Devanagari font
           size: 24, // 12pt
         }),
       ],
       spacing: {
-        after: 200,
+        after: line.trim() === '' ? 240 : 0, // Add paragraph spacing ONLY for blank lines
       }
     });
   });

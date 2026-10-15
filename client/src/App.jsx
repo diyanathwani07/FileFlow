@@ -41,6 +41,11 @@ function App() {
 
     const formData = new FormData();
     formData.append('pdf', file);
+    
+    const forceOcrCheckbox = document.getElementById('forceOcr');
+    if (forceOcrCheckbox && forceOcrCheckbox.checked) {
+      formData.append('forceOcr', 'true');
+    }
 
     try {
       // Step 1: Upload and wait for conversion
@@ -127,7 +132,16 @@ function App() {
                     <Trash2 className="h-5 w-5" />
                   </button>
                 </div>
-                <div className="mt-6 flex justify-end">
+                
+                <div className="mt-6 flex flex-col sm:flex-row items-center justify-between">
+                  <label className="flex items-center space-x-3 text-sm text-gray-700 cursor-pointer mb-4 sm:mb-0">
+                    <input 
+                      type="checkbox" 
+                      id="forceOcr" 
+                      className="form-checkbox h-5 w-5 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500 transition duration-150 ease-in-out" 
+                    />
+                    <span>Force OCR (Fixes mixed English/Hindi Kruti Dev text)</span>
+                  </label>
                   <button
                     onClick={convertFile}
                     className="w-full sm:w-auto px-6 py-3 border border-transparent text-base font-medium rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 shadow-sm"
@@ -174,6 +188,18 @@ function App() {
                     </div>
                   </div>
                 </div>
+
+                {/* Live Preview Box */}
+                {resultData.extractedText && (
+                  <div className="mb-8 text-left max-w-2xl mx-auto border rounded-lg overflow-hidden bg-white shadow-inner">
+                    <div className="bg-gray-100 px-4 py-2 border-b">
+                      <h3 className="text-sm font-semibold text-gray-700">Live Preview</h3>
+                    </div>
+                    <div className="p-4 max-h-60 overflow-y-auto whitespace-pre-wrap text-sm text-gray-800 font-serif leading-relaxed">
+                      {resultData.extractedText}
+                    </div>
+                  </div>
+                )}
 
                 <div className="flex flex-col sm:flex-row gap-4 justify-center">
                   <a

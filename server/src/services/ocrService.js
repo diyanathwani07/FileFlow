@@ -50,8 +50,12 @@ exports.processScannedPdf = async (pdfPath) => {
 
   } catch (error) {
     console.error("OCR Service Error:", error);
-    if (error.message && error.message.includes("gs")) {
-       throw new Error("Ghostscript is not installed. Ghostscript is required to process scanned PDFs. Please install Ghostscript and add it to your system PATH.");
+    if (
+      (error.message && error.message.includes("gs")) ||
+      (error.message && error.message.includes("write EOF")) ||
+      (error.message && error.message.includes("EPIPE"))
+    ) {
+       throw new Error("Ghostscript is required for the Force OCR feature but is not installed on your system. Please download and install Ghostscript (gs) for Windows, then restart the backend server.");
     }
     throw error;
   }

@@ -14,6 +14,8 @@ exports.convertPdf = async (req, res, next) => {
     const pdfPath = req.file.path;
     const originalName = req.file.originalname;
 
+    const forceOcr = req.body.forceOcr === 'true';
+
     // 1. Analyze PDF using pdf-parse to check for selectable text
     const dataBuffer = fs.readFileSync(pdfPath);
     const parseFunc = typeof pdfParse === 'function' ? pdfParse : (pdfParse.PDFParse || pdfParse.default);
@@ -23,7 +25,11 @@ exports.convertPdf = async (req, res, next) => {
     const textLength = pdfData.text ? pdfData.text.trim().length : 0;
     
     // Threshold to determine if it's a scanned PDF (e.g., less than 50 chars might just be metadata/watermarks)
-    const isScanned = textLength < 50;
+    let isScanned = textLength < 50;
+    
+    if (forceOcr) {
+       isScanned = true;
+    }
 
     let totalPages = pdfData.numpages;
 
@@ -31,9 +37,18 @@ exports.convertPdf = async (req, res, next) => {
       // It has selectable text
       console.log('Selectable text found. Extracting directly...');
       extractedText = pdfData.text;
+
+      // Auto-detect Kruti Dev: if the text doesn't contain any Devanagari Unicode characters,
+      // it's highly likely to be a legacy Hindi font like Kruti Dev (since this is a Hindi PDF converter).
+      const hasDevanagari = /[\u0900-\u097F]/.test(extractedText);
+      if (!hasDevanagari && extractedText.trim().length > 0) {
+         console.log('No Devanagari Unicode characters found. Assuming Kruti Dev legacy font and converting...');
+         const krutiToUnicode = require('@anthro-ai/krutidev-unicode');
+         extractedText = krutiToUnicode(extractedText);
+      }
     } else {
-      // It's a scanned PDF, need OCR
-      console.log('No selectable text found. PDF appears to be scanned. Starting OCR process...');
+      // It's a scanned PDF or Force OCR is enabled
+      console.log('Using OCR pipeline...');
       
       // Check if Ghostscript is available for OCR service
       // We will handle this inside processScannedPdf
@@ -58,7 +73,8 @@ exports.convertPdf = async (req, res, next) => {
       isScanned,
       pagesProcessed: totalPages,
       downloadUrl: `/api/download/${path.basename(docxPath)}`,
-      originalName
+      originalName,
+      extractedText
     });
 
   } catch (error) {

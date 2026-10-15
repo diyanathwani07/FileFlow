@@ -13,6 +13,8 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@anthro-ai/krutidev-unicode": "^0.1.0",
+    "@bharattype/hindi-transliteration": "^1.0.1",
     "cors": "^2.8.6",
     "docx": "^9.9.0",
     "express": "^5.2.1",
