@@ -20,8 +20,8 @@ exports.processScannedPdf = async (pdfPath) => {
   let extractedText = '';
 
   try {
-    // Bulk convert all pages. Note: For very large PDFs, this should be done page by page or streamed.
-    const results = await convert.bulk(-1, true); // -1 means all pages
+    // Bulk convert all pages
+    const results = await convert.bulk(-1, { responseType: "image" });
     console.log(`Successfully converted ${results.length} pages to images.`);
 
     for (let i = 0; i < results.length; i++) {
