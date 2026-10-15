@@ -3,6 +3,8 @@ FROM node:20-slim
 # Install Ghostscript and Hindi language data for OCR and PDF rendering
 RUN apt-get update && apt-get install -y \
     ghostscript \
+    graphicsmagick \
+    imagemagick \
     tesseract-ocr \
     tesseract-ocr-hin \
     && rm -rf /var/lib/apt/lists/*
