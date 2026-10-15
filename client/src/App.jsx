@@ -49,16 +49,31 @@ function App() {
       formData.append('forceOcr', 'true');
     }
 
+    let timer = null;
     try {
       // Step 1: Upload and wait for conversion
       setProgressText('Analyzing PDF & Extracting Text...');
       
+      let seconds = 0;
+      timer = setInterval(() => {
+        seconds += 5;
+        if (seconds >= 10 && seconds < 35) {
+          setProgressText('Extracting Hindi text and running OCR...');
+        } else if (seconds >= 35 && seconds < 70) {
+          setProgressText('Recognizing characters & preserving structure...');
+        } else if (seconds >= 70) {
+          setProgressText('Almost done! Finalizing Word (.docx) document...');
+        }
+      }, 5000);
+
       const response = await axios.post(`${API_BASE_URL}/api/convert`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
-        timeout: 120000, // 2-minute safety timeout
+        timeout: 300000, // 5-minute timeout for multi-page OCR
       });
+
+      clearInterval(timer);
 
       if (response.data.success) {
         setStatus('success');
@@ -67,10 +82,13 @@ function App() {
         throw new Error('Conversion failed');
       }
     } catch (err) {
+      if (timer) clearInterval(timer);
       console.error(err);
       setStatus('error');
       setErrorMsg(
-        err.response?.data?.error || err.message || 'An unexpected error occurred during conversion.'
+        err.code === 'ECONNABORTED'
+          ? 'Conversion timed out. The PDF has too many pages or is very complex for OCR.'
+          : err.response?.data?.error || err.message || 'An unexpected error occurred during conversion.'
       );
     }
   };

@@ -25,7 +25,7 @@ exports.convertPdf = async (req, res, next) => {
         const parsedText = Array.isArray(pdfData.text) ? pdfData.text.join('\n\n') : (pdfData.text || '');
         totalPages = pdfData.totalPages || 1;
         
-        if (parsedText.trim().length >= 50) {
+        if (parsedText.trim().length > 15) {
           console.log('Selectable text found. Extracting directly...');
           extractedText = parsedText;
 

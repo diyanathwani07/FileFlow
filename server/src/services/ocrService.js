@@ -14,10 +14,10 @@ exports.processScannedPdf = async (pdfPath) => {
   const outputPrefix = path.join(uploadDir, prefix);
   let imageFiles = [];
 
-  // Method 1: Use pdftoppm (High-speed Linux native tool, converts in ~1 sec with 150 DPI)
+  // Method 1: Use pdftoppm (High-speed Linux native tool, converts in ~1 sec with 120 DPI)
   try {
     console.log('Converting PDF to images with pdftoppm...');
-    await execPromise(`pdftoppm -png -r 150 "${pdfPath}" "${outputPrefix}"`, { timeout: 30000 });
+    await execPromise(`pdftoppm -png -r 120 "${pdfPath}" "${outputPrefix}"`, { timeout: 30000 });
     
     // Find all generated images
     const allFiles = fs.readdirSync(uploadDir);
@@ -62,14 +62,14 @@ exports.processScannedPdf = async (pdfPath) => {
     let pageText = '';
 
     try {
-      // Try native Tesseract CLI (installed in Docker, uses <50MB RAM and runs in ~2 sec)
+      // Try native Tesseract CLI (installed in Docker, uses <50MB RAM and runs fast)
       try {
-        const { stdout } = await execPromise(`tesseract "${imgPath}" stdout -l hin+eng --psm 3`, { timeout: 30000 });
+        const { stdout } = await execPromise(`tesseract "${imgPath}" stdout --dpi 120 -l hin+eng --psm 3 -c tessedit_do_invert=0`, { timeout: 45000 });
         pageText = stdout;
       } catch (nativeErr) {
         // Try hin only if hin+eng failed
         try {
-          const { stdout } = await execPromise(`tesseract "${imgPath}" stdout -l hin --psm 3`, { timeout: 30000 });
+          const { stdout } = await execPromise(`tesseract "${imgPath}" stdout --dpi 120 -l hin --psm 3 -c tessedit_do_invert=0`, { timeout: 45000 });
           pageText = stdout;
         } catch {
           // If native tesseract failed, fallback to tesseract.js
