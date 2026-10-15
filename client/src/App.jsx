@@ -57,6 +57,7 @@ function App() {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
+        timeout: 120000, // 2-minute safety timeout
       });
 
       if (response.data.success) {
