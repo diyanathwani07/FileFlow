@@ -10,6 +10,9 @@ app.use(cors());
 app.use(express.json());
 
 // Routes
+app.get('/', (req, res) => {
+  res.json({ status: 'ok', message: 'Hindi PDF to Word Converter API is running live!' });
+});
 app.use('/api', convertRoutes);
 
 // Error handler
