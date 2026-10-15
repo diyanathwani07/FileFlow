@@ -1,9 +1,8 @@
 const path = require('path');
 const fs = require('fs');
-const pdfParse = require('pdf-parse');
+const { extractText: extractPdfText } = require('unpdf');
 const { generateWordDocument } = require('../services/wordService');
 const { processScannedPdf } = require('../services/ocrService');
-// Trigger nodemon restart
 
 exports.convertPdf = async (req, res, next) => {
   try {
@@ -13,45 +12,43 @@ exports.convertPdf = async (req, res, next) => {
 
     const pdfPath = req.file.path;
     const originalName = req.file.originalname;
-
     const forceOcr = req.body.forceOcr === 'true';
 
-    // 1. Analyze PDF using pdf-parse to check for selectable text
-    const dataBuffer = fs.readFileSync(pdfPath);
-    const parseFunc = typeof pdfParse === 'function' ? pdfParse : (pdfParse.PDFParse || pdfParse.default);
-    const pdfData = await parseFunc(dataBuffer);
-
     let extractedText = '';
-    const textLength = pdfData.text ? pdfData.text.trim().length : 0;
-    
-    // Threshold to determine if it's a scanned PDF (e.g., less than 50 chars might just be metadata/watermarks)
-    let isScanned = textLength < 50;
-    
-    if (forceOcr) {
-       isScanned = true;
-    }
+    let totalPages = 1;
+    let isScanned = false;
 
-    let totalPages = pdfData.numpages;
+    if (!forceOcr) {
+      try {
+        const fileBytes = new Uint8Array(fs.readFileSync(pdfPath));
+        const pdfData = await extractPdfText(fileBytes);
+        const parsedText = Array.isArray(pdfData.text) ? pdfData.text.join('\n\n') : (pdfData.text || '');
+        totalPages = pdfData.totalPages || 1;
+        
+        if (parsedText.trim().length >= 50) {
+          console.log('Selectable text found. Extracting directly...');
+          extractedText = parsedText;
 
-    if (!isScanned) {
-      // It has selectable text
-      console.log('Selectable text found. Extracting directly...');
-      extractedText = pdfData.text;
-
-      // Auto-detect Kruti Dev: if the text doesn't contain any Devanagari Unicode characters,
-      // it's highly likely to be a legacy Hindi font like Kruti Dev (since this is a Hindi PDF converter).
-      const hasDevanagari = /[\u0900-\u097F]/.test(extractedText);
-      if (!hasDevanagari && extractedText.trim().length > 0) {
-         console.log('No Devanagari Unicode characters found. Assuming Kruti Dev legacy font and converting...');
-         const krutiToUnicode = require('@anthro-ai/krutidev-unicode');
-         extractedText = krutiToUnicode(extractedText);
+          // Auto-detect Kruti Dev: if text doesn't contain Devanagari Unicode, convert
+          const hasDevanagari = /[\u0900-\u097F]/.test(extractedText);
+          if (!hasDevanagari && extractedText.trim().length > 0) {
+            console.log('No Devanagari Unicode characters found. Assuming Kruti Dev legacy font and converting...');
+            const krutiToUnicode = require('@anthro-ai/krutidev-unicode');
+            extractedText = krutiToUnicode(extractedText);
+          }
+        } else {
+          isScanned = true;
+        }
+      } catch (parseErr) {
+        console.warn('Direct text extraction failed, falling back to OCR:', parseErr.message);
+        isScanned = true;
       }
     } else {
-      // It's a scanned PDF or Force OCR is enabled
-      console.log('Using OCR pipeline...');
-      
-      // Check if Ghostscript is available for OCR service
-      // We will handle this inside processScannedPdf
+      isScanned = true;
+    }
+
+    if (isScanned) {
+      console.log('PDF is scanned or Force OCR is enabled. Running OCR pipeline...');
       extractedText = await processScannedPdf(pdfPath);
     }
 
