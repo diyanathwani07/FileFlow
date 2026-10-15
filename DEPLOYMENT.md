@@ -1,67 +1,63 @@
-# Deployment Guide
+# Hindi PDF to Word Converter — Deployment & Setup Guide
 
-Your project is built with a separate React frontend (client) and Node.js backend (server). This is an excellent architecture that gives you a lot of flexibility for deployment. 
+This guide explains how to connect this repository to GitHub and deploy both the Frontend and Backend to free/low-cost cloud hosts.
 
-The most common and cost-effective way to deploy this structure is:
-* **Frontend:** Vercel or Netlify (Free)
-* **Backend:** Render or Railway (Free/Cheap)
+---
 
-Before deploying, make sure you push your code to GitHub. 
+## 1. Push to GitHub
 
-## Step 1: Push to GitHub
+Because Git credentials require your personal GitHub login or token, follow these quick steps:
 
-1. Create a new repository on [GitHub](https://github.com/new).
-2. Run these commands in your root `Convertor` folder:
+1. Go to [github.com/new](https://github.com/new) and create a new repository (e.g., `hindi-pdf-to-word-converter`). Leave **README**, **.gitignore**, and **license** unchecked.
+2. In your terminal at `c:\Users\HP\OneDrive\Desktop\Convertor`, run:
 
 ```bash
-git branch -M main
 git remote add origin https://github.com/YOUR_USERNAME/YOUR_REPO_NAME.git
 git push -u origin main
 ```
 
-*(Note: I have already run `git init` and `git commit` for you locally).*
+*(If you already have your GitHub repo URL, tell me the URL and I will configure `git remote` for you!)*
 
 ---
 
-## Step 2: Deploy the Backend (Render)
+## 2. Deploy Backend (Render / Railway)
 
-Because the backend handles file uploads, PDF processing, and requires Node.js, we need a standard hosting provider like [Render](https://render.com).
+Because the backend processes PDFs and OCR using Ghostscript, a Docker-based deployment ensures Ghostscript and Hindi OCR libraries are available.
 
-1. Sign up/log in to Render and click **New > Web Service**.
-2. Connect your GitHub account and select your repository.
+### Option A: Render (Recommended)
+1. Go to [dashboard.render.com](https://dashboard.render.com/) and click **New > Web Service**.
+2. Connect your GitHub repository.
 3. Configure the service:
-   * **Root Directory:** `server`
-   * **Environment:** `Node`
-   * **Build Command:** `npm install`
-   * **Start Command:** `npm start`
-4. **Environment Variables:**
-   * Wait for it to build, and you'll get a URL like `https://convertor-backend-xxxx.onrender.com`.
-
-**Note on Ghostscript:** Render's base Docker image might not have Ghostscript installed by default. If you need scanned PDF (OCR) support on Render, you may need to deploy using a `Dockerfile` that installs `ghostscript` via `apt-get install -y ghostscript` or choose a provider where you can easily install OS-level packages.
-
----
-
-## Step 3: Deploy the Frontend (Vercel)
-
-Vercel is the easiest place to host Vite/React applications.
-
-1. **Important Before Deploying:** Open `client/src/App.jsx` and change the backend URL in the `axios.post` call from `http://localhost:5000` to your new Render backend URL (e.g., `https://convertor-backend-xxxx.onrender.com/api/convert`). Same for the download URL link!
-2. Commit and push that change to GitHub.
-3. Go to [Vercel](https://vercel.com/) and click **Add New > Project**.
-4. Import your GitHub repository.
-5. In the configuration:
-   * **Root Directory:** `client`
-   * **Framework Preset:** Vite
-   * **Build Command:** `npm run build`
-   * **Output Directory:** `dist`
-6. Click **Deploy**.
-
-You will instantly get a live URL for your React app!
+   - **Name:** `hindi-converter-backend`
+   - **Root Directory:** (leave blank or set to `server`)
+   - **Runtime / Environment:** **Docker** (it will auto-detect `server/Dockerfile`)
+   - **Docker Context:** `server`
+   - **Dockerfile Path:** `server/Dockerfile`
+   - **Instance Type:** Free
+4. Click **Deploy Web Service**.
+5. Once deployed, copy your backend URL (e.g. `https://hindi-converter-backend.onrender.com`).
 
 ---
 
-## Summary of Environment Settings
+## 3. Deploy Frontend (Vercel)
 
-Whenever moving to production:
-- Use environment variables (like `process.env.VITE_API_URL` in React) instead of hardcoding `localhost`.
-- Ensure CORS on the backend allows requests from your Vercel URL. Currently, `cors()` is configured to allow all origins in `server.js`, which is fine for getting started.
+Vercel hosts Vite + React frontends with zero configuration.
+
+1. Go to [vercel.com](https://vercel.com/) and click **Add New > Project**.
+2. Select your GitHub repository.
+3. In the project setup:
+   - **Framework Preset:** Vite
+   - **Root Directory:** `client`
+   - **Build Command:** `npm run build`
+   - **Output Directory:** `dist`
+4. Expand **Environment Variables** and add:
+   - **Key:** `VITE_API_URL`
+   - **Value:** `https://your-backend-app.onrender.com` *(your Render backend URL from Step 2, without a trailing slash)*
+5. Click **Deploy**.
+
+---
+
+## 4. Test Everything
+- Open your live Vercel URL.
+- Upload any Hindi PDF (standard or Kruti Dev / scanned).
+- View the live preview directly on the web page and download the editable `.docx` file!
