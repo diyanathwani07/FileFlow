@@ -14,28 +14,27 @@ exports.processScannedPdf = async (pdfPath) => {
   const outputPrefix = path.join(uploadDir, prefix);
   let imageFiles = [];
 
-  // Method 1: Use pdftoppm (High-speed Linux native tool, converts in ~1 sec with 120 DPI)
+  // Step 1: Render PDF pages at 96 DPI (extremely fast, low memory, finishes in < 1s)
   try {
-    console.log('Converting PDF to images with pdftoppm...');
-    await execPromise(`pdftoppm -png -r 120 "${pdfPath}" "${outputPrefix}"`, { timeout: 30000 });
+    console.log('Rendering PDF pages at 96 DPI with pdftoppm...');
+    await execPromise(`pdftoppm -png -r 96 "${pdfPath}" "${outputPrefix}"`, { timeout: 15000 });
     
-    // Find all generated images
     const allFiles = fs.readdirSync(uploadDir);
     imageFiles = allFiles
       .filter(f => f.startsWith(prefix) && f.endsWith('.png'))
       .sort()
       .map(f => path.join(uploadDir, f));
-    console.log(`pdftoppm generated ${imageFiles.length} pages.`);
+    console.log(`pdftoppm rendered ${imageFiles.length} page(s).`);
   } catch (err) {
-    console.warn('pdftoppm not available or failed, falling back to pdf2pic:', err.message);
+    console.warn('pdftoppm failed or not installed, trying pdf2pic...', err.message);
   }
 
-  // Method 2: Fallback to pdf2pic (if pdftoppm is not on system)
+  // Fallback to pdf2pic if pdftoppm wasn't found (e.g. local dev)
   if (imageFiles.length === 0) {
     try {
       const { fromPath } = require('pdf2pic');
       const options = {
-        density: 150,
+        density: 96,
         saveFilename: prefix,
         savePath: uploadDir,
         format: "png"
@@ -43,10 +42,9 @@ exports.processScannedPdf = async (pdfPath) => {
       const convert = fromPath(pdfPath, options);
       const results = await convert.bulk(-1, { responseType: "image" });
       imageFiles = results.map(r => r.path);
-      console.log(`pdf2pic generated ${imageFiles.length} pages.`);
     } catch (err) {
-      console.error('pdf2pic conversion failed:', err.message);
-      throw new Error(`Failed to render PDF to images: ${err.message}`);
+      console.error('Image rendering failed:', err.message);
+      throw new Error(`Failed to render PDF pages: ${err.message}`);
     }
   }
 
@@ -54,40 +52,48 @@ exports.processScannedPdf = async (pdfPath) => {
     throw new Error('No page images were generated from the PDF.');
   }
 
+  // Limit processing to max 10 pages per request to stay safely within cloud limits
+  const pagesToProcess = imageFiles.slice(0, 10);
   let extractedText = '';
 
-  for (let i = 0; i < imageFiles.length; i++) {
-    const imgPath = imageFiles[i];
-    console.log(`Running OCR on page ${i + 1}/${imageFiles.length}...`);
-    let pageText = '';
+  // Step 2: Batch OCR all pages in a single Tesseract invocation
+  // Passing an image list file enables Tesseract to load neural net weights once
+  const listFile = path.join(uploadDir, `${prefix}-pages.txt`);
+  fs.writeFileSync(listFile, pagesToProcess.join('\n'));
 
+  try {
+    console.log(`Running fast native OCR on ${pagesToProcess.length} page(s)...`);
+    const ocrCmd = `tesseract "${listFile}" stdout -l hin+eng --dpi 96 --oem 1 --psm 3 -c tessedit_do_invert=0`;
+    const { stdout } = await execPromise(ocrCmd, { timeout: 45000 });
+    extractedText = stdout;
+  } catch (batchErr) {
+    console.warn('Batch OCR with hin+eng failed, trying hin only:', batchErr.message);
     try {
-      // Try native Tesseract CLI (installed in Docker, uses <50MB RAM and runs fast)
-      try {
-        const { stdout } = await execPromise(`tesseract "${imgPath}" stdout --dpi 120 -l hin+eng --psm 3 -c tessedit_do_invert=0`, { timeout: 45000 });
-        pageText = stdout;
-      } catch (nativeErr) {
-        // Try hin only if hin+eng failed
+      const { stdout } = await execPromise(`tesseract "${listFile}" stdout -l hin --dpi 96 --oem 1 --psm 3 -c tessedit_do_invert=0`, { timeout: 45000 });
+      extractedText = stdout;
+    } catch (hinErr) {
+      console.warn('Batch OCR failed, falling back to page-by-page:', hinErr.message);
+      // Page by page fallback
+      for (const img of pagesToProcess) {
         try {
-          const { stdout } = await execPromise(`tesseract "${imgPath}" stdout --dpi 120 -l hin --psm 3 -c tessedit_do_invert=0`, { timeout: 45000 });
-          pageText = stdout;
-        } catch {
-          // If native tesseract failed, fallback to tesseract.js
-          const Tesseract = require('tesseract.js');
-          const { data: { text } } = await Tesseract.recognize(imgPath, 'hin');
-          pageText = text;
+          const { stdout } = await execPromise(`tesseract "${img}" stdout -l hin --dpi 96 --psm 3 -c tessedit_do_invert=0`, { timeout: 15000 });
+          extractedText += stdout + '\n\n';
+        } catch (e) {
+          console.error('Page OCR error:', e.message);
         }
       }
-    } finally {
-      if (fs.existsSync(imgPath)) {
-        fs.unlinkSync(imgPath);
-      }
     }
-
-    if (pageText && pageText.trim()) {
-      extractedText += pageText.trim() + '\n\n';
+  } finally {
+    // Clean up list file and all images
+    if (fs.existsSync(listFile)) {
+      try { fs.unlinkSync(listFile); } catch {}
+    }
+    for (const img of imageFiles) {
+      if (fs.existsSync(img)) {
+        try { fs.unlinkSync(img); } catch {}
+      }
     }
   }
 
-  return extractedText;
+  return extractedText.trim();
 };

@@ -4,6 +4,30 @@ const { extractText: extractPdfText } = require('unpdf');
 const { generateWordDocument } = require('../services/wordService');
 const { processScannedPdf } = require('../services/ocrService');
 
+function convertKrutiDevPreservingEnglish(text) {
+  const krutiToUnicode = require('@anthro-ai/krutidev-unicode');
+  const placeholders = [];
+
+  // Protect alphanumeric patterns like PAN cards, Aadhar numbers, emails, and common English labels
+  const protectedText = text.replace(
+    /\b([A-Z]{5}[0-9]{4}[A-Z]|[0-9]{4}\s[0-9]{4}\s[0-9]{4}|Pan\s*No\.?|Aadhar\s*No\.?|Flat\s*No\.?|Plot\s*No\.?|[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})\b/gi,
+    (match) => {
+      const id = `__ENG_TOKEN_${placeholders.length}__`;
+      placeholders.push({ id, text: match });
+      return id;
+    }
+  );
+
+  let converted = krutiToUnicode(protectedText);
+
+  // Restore protected English tokens
+  for (const item of placeholders) {
+    converted = converted.replace(item.id, item.text);
+  }
+
+  return converted;
+}
+
 exports.convertPdf = async (req, res, next) => {
   try {
     if (!req.file) {
@@ -32,9 +56,8 @@ exports.convertPdf = async (req, res, next) => {
           // Auto-detect Kruti Dev: if text doesn't contain Devanagari Unicode, convert
           const hasDevanagari = /[\u0900-\u097F]/.test(extractedText);
           if (!hasDevanagari && extractedText.trim().length > 0) {
-            console.log('No Devanagari Unicode characters found. Assuming Kruti Dev legacy font and converting...');
-            const krutiToUnicode = require('@anthro-ai/krutidev-unicode');
-            extractedText = krutiToUnicode(extractedText);
+            console.log('No Devanagari Unicode characters found. Converting Kruti Dev with English preservation...');
+            extractedText = convertKrutiDevPreservingEnglish(extractedText);
           }
         } else {
           isScanned = true;
